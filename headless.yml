@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myconfig
+data:
+  startup.sh: |
+    while true; do
+      for i in `dig +short $(hostname -d) SRV | cut -d ' ' -f 4`; do
+        echo "$(date) - $i - $(dig +short $i A)"
+      done
+      echo -----
+      sleep 15 
+    done 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysvc
+  labels:
+    app: myset 
+spec:
+  ports:
+  - name: broker
+    targetPort: broker
+    port: 8080 
+  clusterIP: None
+  selector:
+    app: myset 
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: myset 
+spec:
+  selector:
+    matchLabels:
+      app: myset 
+  serviceName: mysvc 
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: myset 
+    spec:
+      volumes:
+      - name: config
+        configMap:
+          name: myconfig
+      containers:
+      - name: container 
+        image: maliksalman/jump 
+        command:
+        - bash
+        - /usr/data/startup.sh 
+        ports:
+        - containerPort: 8080 
+          name: broker
+        volumeMounts:
+        - name: config
+          mountPath: /usr/data
+          readOnly: true
